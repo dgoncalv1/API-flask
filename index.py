@@ -1,7 +1,9 @@
-from flask import Flask, redirect, request, render_template
+from flask import Flask, redirect, request, render_template, json
 from flask.helpers import url_for
 from flask_restx import Resource, Api
+import os
 import random
+import json
 
 app = Flask(__name__)
 api = Api(app)
@@ -39,6 +41,35 @@ class Plus_One(Resource):
         x = int(x)
         return{"x": x+1}
 
+@api.route('/JanKenPon/stats')
+class Stats(Resource):
+    def get(self):
+        SITE_ROOT = os.path.realpath(os.path.dirname(__file__))
+        json_url = os.path.join(SITE_ROOT,"stats.json")
+        data = json.load(open(json_url))
+        return data
+@api.route('/JanKenPon/reset_stats')
+class Reset_Stats(Resource):
+    def get(self):
+        data = {}
+        data['Game'] = []
+        data['Game'].append({
+            'Nb_game':0,
+            'Win':0,
+            'Lose':0
+        })
+        data['Symboles'] = []
+        data['Symboles'].append({
+            "Pierre": 0,
+            "Papier": 0,
+            "Ciseaux": 0,
+            "Lezard": 0,
+            "Spock": 0
+        })
+        json.dumps(data, indent=4)
+        with open('stats.json', 'w') as outfile:
+            json.dump(data, outfile)
+        return "Reset Successful"
 @api.route('/JanKenPon')
 class JanKenPon(Resource):
     def get(self):
@@ -72,12 +103,28 @@ def game(x):
     J1_equiv = symboles.index(J1)
     J2_equiv = symboles.index(J2)
     result = combis[J1_equiv][J2_equiv]
-    #Affichage du résultat
-    if(result == True): 
-        winner = "Le Joueur 1 a gagner"
-    elif(result == False): 
-        winner = "Le Joueur 2 a gagner"
-    return {"Choix du Joueur1": J1, "Choix du Joueur2": J2,"Gagnant": winner }
+    #Update du fichier stats.json
+    with open('stats.json') as json_file:
+        data = json.load(json_file)
+        for i in data['Symboles']:
+            i[J1] += 1
+
+        #Affichage du résultat
+        if(result == True):
+            for i in data['Game']:
+                i['Nb_game'] += 1
+                i['Win'] += 1
+            winner = "Le Joueur 1 a gagner"
+        elif(result == False):
+            for i in data['Game']:
+                i['Nb_game'] += 1
+                i['Lose'] += 1
+            winner = "Le Joueur 2 a gagner"
+        for i in data['Game']:
+            i['Winrate'] = f"{( i['Win']*100 ) / (i['Nb_game'])}%"
+        with open('stats.json', 'w') as outfile:
+            json.dump(data, outfile)
+        return {"Choix du Joueur1": J1, "Choix du Joueur2": J2,"Gagnant": winner }
 
 if __name__ == '__main__':
     app.run(debug=True)
